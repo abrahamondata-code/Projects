@@ -1,0 +1,129 @@
+use miscelanea // <-- Esta línea se ejecuta antes que todo lo demás para no producir errores dentro de mongosh y luego se ejecuta lo demás
+
+
+// PASO 1
+// CREACION DE DB
+// use miscelanea
+// db.createCollection("books")
+// db.createCollection("companies")
+//
+// CARGA DE ARCHIVO EN POWERSHELL
+// mongoimport --verbose --db books --collection C:\data\db\datadb_personal\act-2-books.json
+// mongoimport --verbose --db companies --collection C:\data\db\datadb_personal\act-2-companies.json
+
+// PASO 2
+print('\n\n\n -------------------- PASO 2 -----------------------------')
+// USO DE MONGOSH DENTRO DE MONGODB COMPASS
+// REVISION DE LOS DOCUMENTOS
+// use miscelanea
+let a = db.books.findOne()
+let b = db.companies.findOne()
+print('Explorando books')
+print(a)
+print('Explorando companies')
+print(b)
+// a) Identificar todas las categorias
+print('##### Categorias ####')
+let cat_books = db.books.distinct("categories")
+print(cat_books)
+// b) Identificar distintos estados
+print('##### Estados #####')
+let est = db.books.distinct("status")
+print(est)
+// c) Describir la consulta
+print('#####')
+print('\nLa siguiente consulta arroja todos los documentos de la coleccion "books" que en longDescription comienzan\ncon la letra "A" hasta los que comienzan con la letra "B" y al final va a sólo mostrar las claves title y\nlongDescription más la clave default _id')
+let des = db.getCollection('books').find({longDescription: {$gte: "A", $lt: "B"}}, {title: 1, longDescription: 1})
+print(des)
+// d) La consulta anterior más los que tienen 2 autores y los que están publicados
+print('\nDos autores y publicados')
+let aut = db.books.find({authors:{$size:2},publishedDate:{$exists:true},longDescription:{$gte:"A",$lt:"B"}}, {title:1,longDescription:1})
+print(aut)
+// e) Que pasa al agregar toArray()
+print('\nAl agregar .toArray lo que sucede en primer lugar es que cambia de tipo de dato de cursor a un array, \ny en segundo lugar cada documento se convierte en un elemento del array')
+let arr = db.books.find({authors:{$size:2},publishedDate:{$exists:true},longDescription:{$gte:"A",$lt:"B"}}, {title:1,longDescription:1}).toArray()
+print(arr)
+// f) ¿Para qué sería útil?
+print('\nEl código nos podría dar una lista con sus características de manera muy visual y así poder \nmostrarlo de manera más visual para los usuarios')
+db.books.find({authors:{$size:2},publishedDate:{$exists:true},longDescription:{$gte:"A",$lt:"B"}}, {title: 1, longDescription: 1, status:1, authors:1}).toArray().forEach(function(valor, indice, array){print("Titulo: " + valor.title + "Autho 1: " + valor.authors[0] + " Author 2: " + valor.authors[1] + " Registro No. " + indice);})
+
+// PASO 3
+print('\n\n\n -------------------- PASO 3 -----------------------------')
+// CONSULTA 1 - BOOKS
+// a) Tamaño de la collección books
+let tamb = db.books.dataSize()
+print(`Tamaño: ${tamb} bytes`)
+// b) Total libros de la coleccion
+let tlib = db.books.countDocuments()
+print(`Total libros: ${tlib}`)
+// c) Total libros con 200 páginas o más
+let lib_200 = db.books.find({pageCount:{$gte:200}}).count()
+print(`Libros con 200 o más pág: ${lib_200}`)
+// d) Total libros con entre 300 hasta 600 páginas
+let lib36 = db.books.find({pageCount:{$gte:300,$lte:600}}).count()
+print(`Libros entre 300 y 600 páginas: ${lib36}`)
+// e) Total libros con 0 páginas y el restante
+let pag_cero = db.books.find({pageCount:0}).count()
+let pag_rest = db.books.find({pageCount:{$gt:0}}).count()
+print(`Total con cero páginas: ${pag_cero}\nTotal con mas de cero páginas ${pag_rest}`)
+// f) Total de libros publicados y no publicados
+let pub_si = db.books.find({status:"PUBLISHED"}).count()
+let pub_no = db.books.find({status:"MEAP"}).count()
+print(`Total libros publicados: ${pub_si}\nTotal libros no publicados ${pub_no}`)
+
+// PASO 4
+// CONSULTA 2 - COMPANIES
+// a) Tamaño de la colección companies
+let tamc = db.companies.dataSize()
+print(`Tamaño: ${tamc}`)
+// b) Total de compañias
+let tcom = db.companies.countDocuments()
+print(`Total compañías: ${tcom}`)
+// c) Total compañías fundadas en los años 1996, 1997, 2001 y 2005
+let com_a = db.companies.aggregate([ {$match: {founded_year:{$in:[1996,1997,2001,2005]}} },
+                       	 {$group: {_id:"$founded_year",total:{$sum:1}} },
+                         {$project: {_id:0,Año:"$_id",total:1}},
+                         {$sort: {Año:1} }
+                       ])
+print('\nTotal compañías fundadas en los años 1996, 1997, 2001 y 2005')
+print(com_a)
+// d) Compañías que se dedican a «web» o «mobile» mostrando: nombre, descripción, número de empleados, e-mail, año, mes y día de su fundación. 
+let comp_w = db.companies.find( {category_code:{$in:["web","mobile"]}},{name:1,homepage_url:1,twitter_username:1,number_of_employees:1} )
+print('\nCompañías web o mobile')
+print(comp_w)
+// e) Compañías que se dedican a videojuegos por año de fundación
+let comp_vf = db.companies.find( {category_code:"games_video"},{founded_year:1} ).sort({founded_year:1})
+print('\nCompañías de videojuegos ordenadas')
+print(comp_vf)
+// f) Total compañías que tienen 600 empleados o más
+let tc600 = db.companies.countDocuments({number_of_employees:{$gte:600}})
+print(`\nTotal compañías con 600 empleados o más`)
+print(tc600)
+// g) Compañías fundadas entre los años 2001 y 2005, con 500 empleados o más, dedicados a la musica o a los videojuegos, mostrando: nombre, URL, usuario de Twitter y número de empleados
+let com_amv = db.companies.aggregate([ {$match: {founded_year:{$gte:2001,$lte:2005},
+                                   number_of_employees:{$gte:500},
+                                   category_code:{$in:["games_video","music"]}
+                                  }
+                         },
+                         {$project:{name:1,homepage_url:1,twitter_username:1,number_of_employees:1}}
+                       ])
+print('Total compañías de videojuegos fundadas de entre 2001 y 2005 con 500 empleados o más')
+print(com_amv)
+// 	  Total de compañias dedicadas a la musica y a los videjuegos
+let com_mv = db.companies.countDocuments( { categroy_code:{$all:["games_video","music"]}} )
+print('Total de compañias dedicadas a la musica y a los videjuegos')
+print(com_mv)
+// h) Empresas con exclusivamente 2 oficinas en San Francisco
+let emp_san = db.companies.aggregate([ {$unwind: "$offices"},
+                         {$match: {"offices.city": "San Francisco"}},
+                         {$group: {_id: "$name",total_oficinas_sf:{$sum:1}}},
+                         {$match: {total_oficinas_sf:2}}
+                       ])
+print('\nEmpresas con exclusivamente 2 oficinas en San Franciso')
+print(emp_san)
+// i)	Lista el nombre, el mes y día de adquisición de las empresas de videojuegos que hayan sido adquiridas en el año 2007 por un precio igual o superior a los 10 millones de dólares y que tengan oficinas en la ciudad de Culver City.
+let adq = db.companies.find( {category_code:"games_video","acquisition.price_amount":{$gte:10000000},"offices.city":"Culver City"},
+                   {name:1,"acquisition.acquired_month":1,"acquisition.acquired_day":1}  
+                 )
+print('\nEmpresas de videojuegos adquiridas en el año 2007 por un precio de 10 millones de dólares o más\ny con oficinas en la ciudad de Culver City.')
+print(adq)
